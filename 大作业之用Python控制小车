@@ -164,7 +164,7 @@ def sing():
         _5()
         _1()
         time.sleep(2)
-#多线程的使用(变形做边放音乐)
+#多线程的使用(边行走边放音乐)
 if __name__=="__main__":
     _thread.start_new_thread(run,())
     _thread.start_new_thread(sing,())
