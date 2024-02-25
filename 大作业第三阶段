@@ -1,0 +1,146 @@
+#导入需要的模块
+from machine import Pin, PWM
+import time
+import _thread
+hong = Pin(5,Pin.IN,Pin.PULL_UP,value=1)
+#电机的连接与初始参数设置
+fd = PWM(Pin(27))
+fd.freq(1000)
+bd = PWM(Pin(26))
+bd.freq(1000)
+#舵机的连接与初始参数设置
+dj = PWM(Pin(13),Pin.OUT)
+dj.freq(50)
+dj.duty_u16(5140)
+#LED灯与蜂鸣的连接                                      
+LED1 = Pin(32,Pin.OUT)
+LED2 = Pin(33,Pin.OUT)    
+fmq=Pin(25,Pin.OUT)
+
+#网络的连接
+import network
+wlan = network.WLAN(network.STA_IF)
+wlan.active(True)     
+wlan.scan()
+wlan.connect('QHR', '66666666')
+#判断是否连接成功
+wlan.isconnected()
+
+#TCP客户端程序
+import socket
+from socket import *
+IP = "192.168.53.76"
+SERVER_PORT = 50000
+BUFLEN = 512
+#实例化一个socket对象，指明协议
+datesocket = socket(AF_INET,SOCK_STREAM)
+#连接服务端socket
+datesocket.connect((IP,SERVER_PORT))
+
+#MPU6050的使用
+from MPU6050 import MPU6050
+mpu = MPU6050()
+def get_aXYZ():
+    #获取X,Y,Z三个方向的加速度数据 [m/s^-2]
+    accel = mpu.read_accel_data() 
+    aX = accel["x"]
+    aY = accel["y"]
+    aZ = accel["z"]
+    return("acx: " + str(aX) + " acy: " + str(aY) + " acz: " + str(aZ))
+def get_wXYZ():   
+   #获取X,Y,Z三个方向的角速度数据[角度/s] 
+    gyro = mpu.read_gyro_data() 
+    gX = gyro["x"]
+    gY = gyro["y"]
+    gZ = gyro["z"]
+    return("gx:" + str(gX) + " gy:" + str(gY) + " gz:" + str(gZ))
+def get_temperature():
+    # 获取温度数据[摄氏度]
+    temperature = mpu.read_temperature()
+    return("Temperature: " + str(temperature) + "°C")
+def get_v():
+    #获取电机的转速[转/分钟]和小车的行进速度[厘米/秒]
+    num = 0
+    current_time = time.time()
+    if hong.value() == 1:
+        num += 1
+    time_interval = time.time() - current_time
+    if time_interval >= 1:
+        dj_v = num * 3 #60/20 = 3
+    v = num/32
+        return (f"电机的转速为:{dj_v}转/分钟，小车的行进速度为{v}厘米/秒")
+count = 0
+def get_s():
+    #获取行进的路程
+    if hong.value() == 1:
+        count += 1
+    s = count/32
+    return (f"小车行走的距离为{s}厘米")
+
+#地图的行走
+def run():
+    for i in range(1):
+    #直行+转弯   
+        fd.duty(1023)
+        bd.duty(0)
+        time.sleep(5.8)
+        dj.duty_u16(8500)
+        time.sleep(7.6)
+        dj.duty_u16(5140)
+        time.sleep(9)
+    #倒车入库
+        fd.duty(0)
+        bd.duty(1023)
+        time.sleep(2)
+        dj.duty_u16(8650)
+        time.sleep(4)
+        dj.duty_u16(5140)
+        time.sleep(2.6)
+        bd.duty(0)
+        time.sleep(2)
+        fd.duty(1023)
+        time.sleep(2.5)
+    #转弯+后退+转弯+直行
+        dj.duty_u16(8650)
+        time.sleep(4.5)
+        dj.duty_u16(5140)
+        fd.duty(0)
+        bd.duty(1023)
+        time.sleep(2.3)
+        fd.duty(1023)
+        bd.duty(0)
+        dj.duty_u16(8650)
+        time.sleep(7.8)
+        dj.duty_u16(5140)
+        time.sleep(10)
+        
+#小车相关数据的获取
+def get_date():
+    while True:
+        tosend = get_aXYZ() + ' '
+        datesocket.send(tosend.encode())
+        tosend = get_wXYZ() + ' '
+        datesocket.send(tosend.encode())
+        tosend = get_v() + ' '
+        datesocket.send(tosend.encode())
+        tosend = get_s() + ' '
+        datesocket.send(tosend.encode())
+        tosend =get_temperature()  + ' '
+        datesocket.send(tosend.encode())
+        time.sleep(1)
+        if tosend == "":
+            break
+        #发送消息，也要编码为 bytes
+        datesocket.send(tosend.encode())
+        #等待接受服务端的消息
+        recved = datesocket.recv(BUFLEN)
+        #如果返回空bytes，表示对方关闭了连接
+        if not recved:
+            break
+        #打印读取的内容
+        print(recved.decode())
+    datesocket.close()
+
+if __name__=="__main__":
+    _thread.start_new_thread(run,())
+    _thread.start_new_thread(get_date,())
