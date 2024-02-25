@@ -1,0 +1,24 @@
+# TCP 服务端程序
+#导入socket库
+import socket
+from socket import *
+IP = "192.168.53.76"
+PORT = 50000
+BUFLEN = 512
+
+listensocket = socket(AF_INET,SOCK_STREAM)
+
+listensocket.bind((IP,PORT))
+
+listensocket.listen(5)
+
+datesocket, addr = listensocket.accept()
+
+while True:
+    recved = datesocket.recv(BUFLEN)
+    if not recved:
+        break
+    info = recved.decode()
+    print(f"{info}")
+datesocket.close()
+listensocket.close()
